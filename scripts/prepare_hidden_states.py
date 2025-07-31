@@ -37,7 +37,6 @@ from transformers import AutoConfig, AutoTokenizer
 
 from specforge.data import build_eagle3_dataset
 from specforge.utils import print_with_rank, rank_0_priority
-from specforge.distributed import get_sync_group
 
 
 class LogitsProcessorForEAGLE3(torch.nn.Module):
@@ -319,12 +318,6 @@ def parse_args():
     parser.add_argument("--num-samples", type=int, default=None)
     parser.add_argument("--enable-aux-hidden-states", action="store_true")
     parser.add_argument("--aux-hidden-states-layers", type=str, default=None)
-    parser.add_argument(
-        "--dist-timeout",
-        type=int,
-        default=20,
-        help="Timeout for collective communication in minutes",
-    )
     ServerArgs.add_cli_args(parser)
     BenchArgs.add_cli_args(parser)
     return parser.parse_args()
@@ -333,6 +326,9 @@ def parse_args():
 def main():
     args = parse_args()
     torch.distributed.init_process_group(backend="nccl")
+    world_size = dist.get_world_size()
+    sync_ranks = list(range(world_size))
+    sync_group = dist.new_group(backend="gloo", ranks=sync_ranks)
     assert os.path.exists(
         args.data_path
     ), f"Dataset path {args.data_path} does not exist"
@@ -346,7 +342,7 @@ def main():
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
     cache_key = hashlib.md5(args.data_path.encode()).hexdigest()
     timeout = timedelta(minutes=args.dist_timeout)
-    with rank_0_priority(group=get_sync_group(), timeout_min_or_timedelta=timeout):
+    with rank_0_priority(group=sync_group, timeout_min_or_timedelta=timeout):
         eagle3_dataset = build_eagle3_dataset(
             dataset=dataset,
             tokenizer=tokenizer,
