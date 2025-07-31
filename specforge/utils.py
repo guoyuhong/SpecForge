@@ -9,8 +9,6 @@ import torch
 import torch.distributed as dist
 from transformers import PretrainedConfig
 
-from specforge.distributed import get_sync_group
-
 
 def validate_wandb_args(parser, args):
     if not args.wandb:
@@ -46,16 +44,18 @@ def validate_wandb_args(parser, args):
 
 
 @contextmanager
-def rank_0_priority(timeout_min_or_timedelta=None):
+def rank_0_priority(group=None, timeout_min_or_timedelta=None):
+    if group is None:
+        group = dist.group.WORLD
     def call_barrier():
         if timeout_min_or_timedelta is None:
-            dist.barrier(group=get_sync_group())
+            dist.barrier(group=group)
         elif isinstance(timeout_min_or_timedelta, timedelta):
             dist.monitored_barrier(
-                group=get_sync_group(), timeout=timeout_min_or_timedelta)
+                group=group, timeout=timeout_min_or_timedelta)
         else:
             timeout = timedelta(minutes=timeout_min_or_timedelta)
-            timedelta(group=get_sync_group(), timeout=timeout)
+            timedelta(group=group, timeout=timeout)
     rank = dist.get_rank()
 
     if rank == 0:
