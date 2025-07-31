@@ -7,6 +7,7 @@ import torch.distributed as dist
 import wandb
 from accelerate.utils import set_seed
 from datasets import load_dataset
+from datetime import timedelta
 from torch.distributed.fsdp import FullyShardedDataParallel as FSDP
 from torch.distributed.fsdp import MixedPrecision, ShardingStrategy, StateDictType
 from tqdm import tqdm
@@ -172,7 +173,8 @@ def main():
     # convert to dataloader
     cache_key = hashlib.md5(args.train_data_path.encode()).hexdigest()
     train_dataset = load_dataset("json", data_files=args.train_data_path)["train"]
-    with rank_0_priority():
+    timeout = timedelta(minutes=args.dist_timeout)
+    with rank_0_priority(timeout):
         train_eagle3_dataset = build_eagle3_dataset(
             dataset=train_dataset,
             tokenizer=tokenizer,

@@ -7,6 +7,7 @@ from specforge.utils import print_with_rank
 
 _TP_GROUP = None
 _DP_GROUP = None
+_SYNC_GROUP = None
 
 
 def get_tp_group():
@@ -17,6 +18,11 @@ def get_tp_group():
 def get_dp_group():
     global _DP_GROUP
     return _DP_GROUP
+
+
+def get_sync_group():
+    global _SYNC_GROUP
+    return _SYNC_GROUP
 
 
 def init_distributed(timeout: int = 10, tp_size: int = 1):
@@ -36,7 +42,7 @@ def init_distributed(timeout: int = 10, tp_size: int = 1):
     world_size = dist.get_world_size()
     dp_size = world_size // tp_size
     assert world_size == tp_size * dp_size, "world size must be divisible by tp size"
-    global _TP_GROUP, _DP_GROUP
+    global _TP_GROUP, _DP_GROUP, _SYNC_GROUP
 
     # create tp group
     tp_ranks = [list(range(i * tp_size, (i + 1) * tp_size)) for i in range(dp_size)]
@@ -51,6 +57,10 @@ def init_distributed(timeout: int = 10, tp_size: int = 1):
         dp_group = dist.new_group(ranks=ranks)
         if rank in ranks:
             _DP_GROUP = dp_group
+
+    # create sync group
+    sync_ranks = list(range(world_size))
+    _SYNC_GROUP = dist.new_group(backend="gloo", ranks=sync_ranks)
 
 
 def destroy_distributed():
