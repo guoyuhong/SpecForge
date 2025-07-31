@@ -20,7 +20,12 @@ from specforge.data import (
     generate_vocab_mapping_file,
     prepare_dp_dataloaders,
 )
-from specforge.distributed import destroy_distributed, get_dp_group, init_distributed
+from specforge.distributed import (
+    destroy_distributed,
+    get_dp_group,
+    get_sync_group,
+    init_distributed,
+)
 from specforge.lr_scheduler import CosineAnnealingWarmupLR
 from specforge.modeling.target.target_head import TargetHead
 from specforge.utils import print_with_rank, rank_0_priority, validate_wandb_args
@@ -145,7 +150,7 @@ def main():
     cache_key = hashlib.md5(args.train_data_path.encode()).hexdigest()
     train_dataset = load_dataset("json", data_files=args.train_data_path)["train"]
     timeout = timedelta(minutes=args.dist_timeout)
-    with rank_0_priority(timeout):
+    with rank_0_priority(group=get_sync_group(), timeout_min_or_timedelta=timeout):
         train_eagle3_dataset_tmp = build_eagle3_dataset(
             dataset=train_dataset,
             tokenizer=tokenizer,
